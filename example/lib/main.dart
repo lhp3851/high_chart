@@ -22,7 +22,7 @@ class ExampleChart extends StatefulWidget {
   _ExampleChartState createState() => _ExampleChartState();
 }
 
-class _ExampleChartState extends State<ExampleChart> {
+class _ExampleChartState extends State<ExampleChart> with TickerProviderStateMixin {
   final String _chartData = '''{
       title: {
           text: 'Combination chart'
@@ -36,7 +36,7 @@ class _ExampleChartState extends State<ExampleChart> {
               style: {
                   left: '50px',
                   top: '18px',
-                  color: ( // theme
+                  color: (
                       Highcharts.defaultOptions.title.style &&
                       Highcharts.defaultOptions.title.style.color
                   ) || 'black'
@@ -70,15 +70,15 @@ class _ExampleChartState extends State<ExampleChart> {
           data: [{
               name: 'Jane',
               y: 13,
-              color: Highcharts.getOptions().colors[0] // Jane's color
+              color: Highcharts.getOptions().colors[0] 
           }, {
               name: 'John',
               y: 23,
-              color: Highcharts.getOptions().colors[1] // John's color
+              color: Highcharts.getOptions().colors[1]
           }, {
               name: 'Joe',
               y: 19,
-              color: Highcharts.getOptions().colors[2] // Joe's color
+              color: Highcharts.getOptions().colors[2] 
           }],
           center: [100, 80],
           size: 100,
@@ -89,6 +89,19 @@ class _ExampleChartState extends State<ExampleChart> {
         }]
     }''';
 
+  late AnimationController _animationController;
+
+  @override
+  void initState() {
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..addListener(() {
+        setState(() {});
+      });
+    super.initState();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -98,10 +111,16 @@ class _ExampleChartState extends State<ExampleChart> {
         title: const Text('High Charts Example App'),
       ),
       body: HighCharts(
-        loader: const SizedBox(
-          child: LinearProgressIndicator(),
+        loader: SizedBox(
+          child: LinearProgressIndicator(
+            value: _animationController.value,
+          ),
           width: 200,
         ),
+        progressHandler: (progress) {
+          debugPrint("progress: $progress");
+          _animationController.value = progress?.toDouble() ?? 0;
+        },
         size: const Size(400, 400),
         data: _chartData,
         scripts: const [

@@ -13,6 +13,7 @@ class HighCharts extends StatefulWidget {
   const HighCharts(
       {required this.data,
       required this.size,
+      this.progressHandler,
       this.loader = const CircularProgressIndicator(),
       this.scripts = const [],
       Key? key})
@@ -100,13 +101,15 @@ class HighCharts extends StatefulWidget {
   ///```
   ///
   final List<String> scripts;
+
+  final void Function(int? progress)? progressHandler;
+
   @override
   _HighChartsState createState() => _HighChartsState();
 }
 
 class _HighChartsState extends State<HighCharts> {
-  final String _highChartsId =
-      "HighChartsId" + (Random().nextInt(900000) + 100000).toString();
+  final String _highChartsId = "HighChartsId${Random().nextInt(900000) + 100000}";
 
   @override
   void didUpdateWidget(covariant HighCharts oldWidget) {

@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 ///
 ///A Chart library based on [High Charts (.JS)](https://www.highcharts.com/)
@@ -10,6 +12,7 @@ class HighCharts extends StatefulWidget {
   const HighCharts(
       {required this.data,
       required this.size,
+      this.progressHandler,
       this.loader = const Center(child: CircularProgressIndicator()),
       this.scripts = const [],
       Key? key})
@@ -97,6 +100,9 @@ class HighCharts extends StatefulWidget {
   ///```
   ///
   final List<String> scripts;
+
+  final void Function(int? progress)? progressHandler;
+
   @override
   _HighChartsState createState() => _HighChartsState();
 }
@@ -104,16 +110,70 @@ class HighCharts extends StatefulWidget {
 class _HighChartsState extends State<HighCharts> {
   bool _isLoaded = false;
 
-  WebViewController? _controller;
+  late final WebViewController _controller;
 
   @override
   void didUpdateWidget(covariant HighCharts oldWidget) {
-    if (oldWidget.data != widget.data ||
-        oldWidget.size != widget.size ||
-        oldWidget.scripts != widget.scripts) {
-      _loadHtmlContent(_controller!);
+    if (oldWidget.data != widget.data || oldWidget.size != widget.size || oldWidget.scripts != widget.scripts) {
+      _loadHtmlContent(_controller);
     }
     super.didUpdateWidget(oldWidget);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    PlatformWebViewControllerCreationParams params;
+    if (WebViewPlatform.instance is WebKitWebViewPlatform) {
+      params = WebKitWebViewControllerCreationParams(
+        allowsInlineMediaPlayback: true,
+        mediaTypesRequiringUserAction: const <PlaybackMediaTypes>{},
+      );
+    } else if (WebViewPlatform.instance is AndroidWebViewPlatform) {
+      params = AndroidWebViewControllerCreationParams();
+    } else {
+      params = const PlatformWebViewControllerCreationParams();
+    }
+    _controller = WebViewController.fromPlatformCreationParams(params);
+    if (_controller.platform is AndroidWebViewController) {
+      AndroidWebViewController.enableDebugging(kDebugMode);
+      (_controller.platform as AndroidWebViewController).setMediaPlaybackRequiresUserGesture(false);
+    }
+
+    _controller.enableZoom(false);
+    _controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+    _controller.setBackgroundColor(Colors.transparent);
+    _controller.setNavigationDelegate(NavigationDelegate(
+      onProgress: (int progress) {
+        if (widget.progressHandler != null) {
+          widget.progressHandler!(progress);
+        }
+      },
+      onWebResourceError: (error) {
+        debugPrint(error.toString());
+      },
+      onPageStarted: (url) {
+        debugPrint('url: $url');
+      },
+      onPageFinished: (String url) {
+        _loadData();
+      },
+      onNavigationRequest: (NavigationRequest request) async {
+        if (await canLaunchUrlString(request.url)) {
+          try {
+            launchUrlString(request.url);
+          } catch (e) {
+            debugPrint('High Charts Error ->$e');
+          }
+          return NavigationDecision.prevent;
+        }
+        return NavigationDecision.navigate;
+      },
+    ));
+    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
+      _loadHtmlContent(_controller);
+    });
   }
 
   @override
@@ -126,35 +186,7 @@ class _HighChartsState extends State<HighCharts> {
         fit: StackFit.expand,
         children: [
           !_isLoaded ? widget.loader : const SizedBox.shrink(),
-          WebView(
-            debuggingEnabled: kDebugMode,
-            allowsInlineMediaPlayback: true,
-            javascriptMode: JavascriptMode.unrestricted,
-            zoomEnabled: false,
-            initialMediaPlaybackPolicy: AutoMediaPlaybackPolicy.always_allow,
-            backgroundColor: Colors.transparent,
-            onWebViewCreated: (WebViewController _) {
-              _controller = _;
-              _loadHtmlContent(_);
-            },
-            onWebResourceError: (error) {
-              debugPrint(error.toString());
-            },
-            onPageFinished: (String url) {
-              _loadData();
-            },
-            navigationDelegate: (NavigationRequest request) async {
-              if (await canLaunchUrlString(request.url)) {
-                try {
-                  launchUrlString(request.url);
-                } catch (e) {
-                  debugPrint('High Charts Error ->' + e.toString());
-                }
-                return NavigationDecision.prevent;
-              }
-              return NavigationDecision.navigate;
-            },
-          ),
+          WebViewWidget(controller: _controller),
         ],
       ),
     );
@@ -175,7 +207,6 @@ class _HighChartsState extends State<HighCharts> {
     setState(() {
       _isLoaded = true;
     });
-    _controller!.runJavascriptReturningResult(
-        "senthilnasa(`Highcharts.chart('highChartsDiv',${widget.data} )`);");
+    _controller.runJavaScriptReturningResult("senthilnasa(`Highcharts.chart('highChartsDiv',${widget.data} )`);");
   }
 }
